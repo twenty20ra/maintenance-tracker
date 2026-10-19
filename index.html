@@ -373,7 +373,7 @@
       const item = records.find((record) => record.id === id);
       if (!item) return;
       const currentCompact = toLocalCompactDateTime(new Date(item.endTime));
-      const input = prompt("請輸入新的維護結束時間（10 碼 YYMMDDHHmm，例如 2610200130）：", currentCompact);
+      const input = prompt("請輸入新的維護結束時間（10 碼 YYMMDDHHmm，例如 2610200130）：");
       if (input === null) return;
       const newEndTime = parseCompactDateTime(input);
       if (!newEndTime) { alert("格式不正確，請輸入 10 碼時間，例如 2610200130。"); return; }
