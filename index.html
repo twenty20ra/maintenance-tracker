@@ -91,14 +91,14 @@
           <input
             type="text"
             id="endInput"
-            inputmode="numeric"
-            maxlength="10"
+            maxlength="20"
             autocomplete="off"
             required
+            placeholder="輸入 10 碼或填 待定"
             class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           >
           <p class="text-xs text-slate-400 mt-1">
-            格式：YYMMDDHHmm，例如 2610200100
+            格式：YYMMDDHHmm 或直接填「待定」
           </p>
         </div>
 
@@ -175,7 +175,7 @@
     import { getFirestore, collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
-      apiKey: "AIzaSyBcMcRrmiOMQm02hSIsmUiRiyKlKrkbZN0",
+      apiKey: "AIzaSyBcMcRmiOMQm02hSIsmUiRiYKlKrkbZN0",
       authDomain: "maintenance-tracker-bifa.firebaseapp.com",
       projectId: "maintenance-tracker-bifa",
       storageBucket: "maintenance-tracker-bifa.firebasestorage.app",
@@ -193,14 +193,16 @@
     const notifiedKeys = new Set();
     const $ = (id) => document.getElementById(id);
 
-    ["startInput", "endInput"].forEach((id) => {
-      $(id).addEventListener("input", (event) => {
-        event.target.value = event.target.value.replace(/\D/g, "").slice(0, 10);
-      });
+    // 開始時間維持只能輸入數字
+    $("startInput").addEventListener("input", (event) => {
+      event.target.value = event.target.value.replace(/\D/g, "").slice(0, 10);
     });
 
     function parseCompactDateTime(value) {
       const input = String(value ?? "").trim();
+      // 如果輸入是「待定」，回傳一個特殊標記字串
+      if (input === "待定") return "PENDING";
+
       if (!/^\d{10}$/.test(input)) return "";
 
       const year = 2000 + Number(input.slice(0, 2));
@@ -221,6 +223,7 @@
 
     function formatDateTime(value) {
       if (!value) return "";
+      if (value === "PENDING") return "待定";
       return String(value).replace("T", " ").slice(0, 16);
     }
 
@@ -230,7 +233,11 @@
         records.push({ id: docSnap.id, ...docSnap.data() });
       });
 
-      records.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+      records.sort((a, b) => {
+        const timeA = a.startTime ? new Date(a.startTime).getTime() : 0;
+        const timeB = b.startTime ? new Date(b.startTime).getTime() : 0;
+        return timeA - timeB;
+      });
       renderList();
       checkMaintenanceAlerts();
     }, (error) => {
@@ -245,15 +252,16 @@
 
       const vendorName = $("vendorName").value.trim();
       const startTime = parseCompactDateTime($("startInput").value);
-      const endTime = parseCompactDateTime($("endInput").value);
+      const rawEndInput = $("endInput").value.trim();
+      const endTime = rawEndInput === "待定" ? "PENDING" : parseCompactDateTime(rawEndInput);
       const staffName = $("staffName").value.trim();
 
       if (!vendorName || !staffName || !startTime || !endTime) {
-        alert("請確認所有欄位都已正確填寫（時間需為 10 碼數字）！");
+        alert("請確認所有欄位都已正確填寫（開始時間需為 10 碼數字，結束時間可填 10 碼或「待定」）！");
         return;
       }
 
-      if (new Date(endTime) <= new Date(startTime)) {
+      if (endTime !== "PENDING" && new Date(endTime) <= new Date(startTime)) {
         alert("維護結束時間必須晚於開始時間！");
         return;
       }
@@ -301,12 +309,20 @@
       const now = new Date();
       listBody.innerHTML = records.map((item) => {
         const start = new Date(item.startTime);
-        const end = new Date(item.endTime);
+        const isPending = item.endTime === "PENDING";
+        const end = isPending ? null : new Date(item.endTime);
+
         let statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-600">未開始</span>`;
-        if (now >= start && now <= end) {
-          statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中</span>`;
-        } else if (now > end) {
-          statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">已結束</span>`;
+        if (isPending) {
+          if (now >= start) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中 (待定)</span>`;
+          }
+        } else {
+          if (now >= start && now <= end) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中</span>`;
+          } else if (now > end) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">已結束</span>`;
+          }
         }
 
         return `
@@ -334,7 +350,7 @@
             <td class="py-3 px-4 whitespace-nowrap">${statusBadge}</td>
             <td class="py-3 px-4 text-center">
               <div class="flex flex-col items-center gap-2">
-                <button type="button" onclick="extendRecord('${escapeHTML(item.id)}')" class="text-xs text-indigo-600 hover:text-indigo-800 underline">延長</button>
+                <button type="button" onclick="extendRecord('${escapeHTML(item.id)}')" class="text-xs text-indigo-600 hover:text-indigo-800 underline">延長/改期</button>
                 <button type="button" onclick="deleteRecord('${escapeHTML(item.id)}')" class="text-xs text-red-500 hover:text-red-700 underline">刪除</button>
               </div>
             </td>
@@ -355,7 +371,6 @@
       if (field === "isClosed") updateData.closedBy = value ? name.trim() : "";
       if (field === "isOpened") {
         updateData.openedBy = value ? name.trim() : "";
-        // 勾選「已開啟」代表維護實際結束；將結束時間改成此刻，且不再提醒結束。
         if (value) {
           const now = new Date();
           updateData.endTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}T${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
@@ -372,16 +387,22 @@
     window.extendRecord = async (id) => {
       const item = records.find((record) => record.id === id);
       if (!item) return;
-      const currentCompact = toLocalCompactDateTime(new Date(item.endTime));
-      const input = prompt("請輸入新的維護結束時間（10 碼 YYMMDDHHmm，例如 2610200130）：");
+      const input = prompt("請輸入新的結束時間（10 碼 YYMMDDHHmm，或輸入「待定」）：");
       if (input === null) return;
-      const newEndTime = parseCompactDateTime(input);
-      if (!newEndTime) { alert("格式不正確，請輸入 10 碼時間，例如 2610200130。"); return; }
-      if (new Date(newEndTime) <= new Date(item.startTime)) { alert("結束時間必須晚於維護開始時間！"); return; }
+      
+      let newEndTime;
+      if (input.trim() === "待定") {
+        newEndTime = "PENDING";
+      } else {
+        newEndTime = parseCompactDateTime(input);
+        if (!newEndTime) { alert("格式不正確，請輸入 10 碼時間或「待定」。"); return; }
+        if (new Date(newEndTime) <= new Date(item.startTime)) { alert("結束時間必須晚於維護開始時間！"); return; }
+      }
+
       try {
         await updateDoc(doc(db, "maintenances", id), { endTime: newEndTime, isOpened: false, openedBy: "" });
         alert("維護結束時間已更新！");
-      } catch (error) { alert("延長失敗：" + error.message); }
+      } catch (error) { alert("更新失敗：" + error.message); }
     };
 
     window.deleteRecord = async (id) => {
@@ -421,7 +442,7 @@
         audioContext = audioContext || new Ctx();
         if (audioContext.state === "suspended") audioContext.resume();
         const now = audioContext.currentTime;
-        // 五聲較響亮的雙音提示；實際音量仍受電腦系統音量控制。
+        // 音量已降低 30%（從 0.42 改為 0.29）
         const notes = [880, 1046.5, 880, 1174.7, 1046.5];
         notes.forEach((frequency, index) => {
           const offset = index * 0.24;
@@ -430,8 +451,8 @@
           oscillator.type = "triangle";
           oscillator.frequency.value = frequency;
           gain.gain.setValueAtTime(0.0001, now + offset);
-          gain.gain.exponentialRampToValueAtTime(0.42, now + offset + 0.025);
-          gain.gain.setValueAtTime(0.42, now + offset + 0.11);
+          gain.gain.exponentialRampToValueAtTime(0.29, now + offset + 0.025);
+          gain.gain.setValueAtTime(0.29, now + offset + 0.11);
           gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.21);
           oscillator.connect(gain);
           gain.connect(audioContext.destination);
@@ -459,22 +480,25 @@
       for (const item of records) {
         if (!item.startTime || !item.endTime) continue;
         const start = new Date(item.startTime).getTime();
-        const end = new Date(item.endTime).getTime();
-        if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+        if (!Number.isFinite(start)) continue;
         const name = item.vendorName || "未命名維護";
-        // 僅在維護開始前 5 分鐘提醒；若這時才開啟頁面，也會補提醒一次。
+        
+        // 維護開始前 5 分鐘提醒
         if (now >= start - 5 * 60 * 1000 && now < start && !item.isClosed) {
           sendMaintenanceAlert(`${item.id}-prestart`, `⏰ 維護即將開始：${name}`, `預計開始時間：${formatDateTime(item.startTime)}（5 分鐘後開始）`);
         }
-        // 到達預計結束時間時提醒客服確認開啟；已勾選開啟就不再提醒。
-        if (now >= end && !item.isOpened) {
-          sendMaintenanceAlert(`${item.id}-end-${item.endTime}`, `🔔 請確認維護已結束：${name}`, `預計結束時間已到：${formatDateTime(item.endTime)}。請確認遊戲是否已開啟。`);
+
+        // 若結束時間為待定，則不發送結束提醒
+        if (item.endTime !== "PENDING") {
+          const end = new Date(item.endTime).getTime();
+          if (Number.isFinite(end) && now >= end && !item.isOpened) {
+            sendMaintenanceAlert(`${item.id}-end-${item.endTime}`, `🔔 請確認維護已結束：${name}`, `預計結束時間已到：${formatDateTime(item.endTime)}。請確認遊戲是否已開啟。`);
+          }
         }
       }
     }
 
     window.enableAudio = async () => {
-      // 由使用者點擊啟動音效，避免瀏覽器阻擋自動播放。
       try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (Ctx) {
@@ -486,15 +510,14 @@
       if ("Notification" in window) {
         const perm = await Notification.requestPermission();
         const message = perm === "granted"
-          ? "電腦通知已允許，音效測試已播放。頁面保持開啟時，會在維護開始前 5 分鐘提醒。"
+          ? "電腦通知已允許，音效測試已播放（音量已調低）。頁面保持開啟時，會在維護開始前 5 分鐘提醒。"
           : "瀏覽器通知權限未開啟；網頁內提醒仍會顯示，但請允許通知以接收電腦右下角提醒。";
         alert(message);
       } else {
-        alert("此瀏覽器不支援電腦通知；網頁內提醒與音效仍可使用。請保持此頁開啟。 ");
+        alert("此瀏覽器不支援電腦通知；網頁內提醒與音效仍可使用。請保持此頁開啟。");
       }
     };
     $("enableAudioBtn").addEventListener("click", window.enableAudio);
-    // 每 15 秒檢查一次，網頁保持開啟時執行。
     setInterval(checkMaintenanceAlerts, 15000);
   </script>
 </body>
