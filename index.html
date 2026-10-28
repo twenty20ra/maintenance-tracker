@@ -164,6 +164,38 @@
       </div>
     </section>
 
+    <!-- 已完成維護：預設收起，只隱藏畫面，不刪除 Firebase 資料 -->
+    <section class="bg-white rounded-xl shadow-md overflow-hidden">
+      <button
+        id="archiveToggleBtn"
+        type="button"
+        aria-expanded="false"
+        class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-50 transition"
+        onclick="toggleArchive()"
+      >
+        <span class="font-semibold text-slate-800">📦 已完成維護紀錄 <span id="archiveCount" class="text-sm font-normal text-slate-500">（0）</span></span>
+        <span id="archiveToggleIcon" class="text-slate-500">▼ 點擊查看</span>
+      </button>
+      <div id="archivePanel" class="hidden border-t border-slate-100 p-4">
+        <p class="text-xs text-slate-500 mb-3">已確認開啟的維護會收納在這裡。資料仍保留在雲端，需要時可展開查看。</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[850px]">
+            <thead>
+              <tr class="border-b text-xs font-semibold text-slate-500 bg-slate-50">
+                <th class="py-3 px-4">遊戲館別</th>
+                <th class="py-3 px-4">維護區間</th>
+                <th class="py-3 px-4 text-left">開始：確認關閉</th>
+                <th class="py-3 px-4 text-left">結束：確認開啟</th>
+                <th class="py-3 px-4">狀態</th>
+                <th class="py-3 px-4 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="archiveBody" class="divide-y divide-slate-100 text-sm"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </div>
 
   <!-- 頁面內通知區 -->
@@ -299,30 +331,20 @@
       return String(str ?? "").replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
-    function renderList() {
-      const listBody = $("listBody");
-      if (records.length === 0) {
-        listBody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">目前尚無維護排程。</td></tr>`;
-        return;
-      }
-
-      const now = new Date();
-      listBody.innerHTML = records.map((item) => {
+    function renderRecordRows(items, now) {
+      if (items.length === 0) return `<tr><td colspan="6" class="text-center py-6 text-slate-400">目前沒有紀錄。</td></tr>`;
+      return items.map((item) => {
         const start = new Date(item.startTime);
         const isPending = item.endTime === "PENDING";
         const end = isPending ? null : new Date(item.endTime);
 
         let statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-600">未開始</span>`;
         if (isPending) {
-          if (now >= start) {
-            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中 (待定)</span>`;
-          }
-        } else {
-          if (now >= start && now <= end) {
-            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中</span>`;
-          } else if (now > end) {
-            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">已結束</span>`;
-          }
+          if (now >= start) statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中 (待定)</span>`;
+        } else if (now >= start && now <= end) {
+          statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800 font-semibold">維護中</span>`;
+        } else if (now > end) {
+          statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800">已結束</span>`;
         }
 
         return `
@@ -336,14 +358,14 @@
               <div class="mt-1">結束：${escapeHTML(formatDateTime(item.endTime))}</div>
             </td>
             <td class="py-3 px-4 text-left">
-              <label class="inline-flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" ${item.isClosed ? "checked" : ""} onchange="toggleStatus('${escapeHTML(item.id)}', 'isClosed', this.checked)" class="w-4 h-4 text-indigo-600 rounded">
+              <label class="flex w-full items-center justify-start gap-2 cursor-pointer">
+                <input type="checkbox" ${item.isClosed ? "checked" : ""} onchange="toggleStatus('${escapeHTML(item.id)}', 'isClosed', this.checked)" class="w-4 h-4 shrink-0 text-indigo-600 rounded">
                 <span class="text-xs text-slate-500">${item.isClosed ? `✅ ${escapeHTML(item.closedBy || '已關閉')}` : "未關閉"}</span>
               </label>
             </td>
             <td class="py-3 px-4 text-left">
-              <label class="inline-flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" ${item.isOpened ? "checked" : ""} onchange="toggleStatus('${escapeHTML(item.id)}', 'isOpened', this.checked)" class="w-4 h-4 text-emerald-600 rounded">
+              <label class="flex w-full items-center justify-start gap-2 cursor-pointer">
+                <input type="checkbox" ${item.isOpened ? "checked" : ""} onchange="toggleStatus('${escapeHTML(item.id)}', 'isOpened', this.checked)" class="w-4 h-4 shrink-0 text-emerald-600 rounded">
                 <span class="text-xs text-slate-500">${item.isOpened ? `✅ ${escapeHTML(item.openedBy || '已開啟')}` : "未開啟"}</span>
               </label>
             </td>
@@ -358,6 +380,29 @@
         `;
       }).join("");
     }
+
+    function renderList() {
+      const now = new Date();
+      const activeRecords = records.filter((item) => !item.isOpened);
+      const archivedRecords = records.filter((item) => Boolean(item.isOpened));
+      $("listBody").innerHTML = activeRecords.length
+        ? renderRecordRows(activeRecords, now)
+        : `<tr><td colspan="6" class="text-center py-6 text-slate-400">目前沒有待處理的維護計畫。</td></tr>`;
+      $("archiveBody").innerHTML = archivedRecords.length
+        ? renderRecordRows(archivedRecords, now)
+        : `<tr><td colspan="6" class="text-center py-6 text-slate-400">目前尚無已完成的維護紀錄。</td></tr>`;
+      $("archiveCount").textContent = `（${archivedRecords.length}）`;
+    }
+
+    window.toggleArchive = () => {
+      const panel = $("archivePanel");
+      const button = $("archiveToggleBtn");
+      const icon = $("archiveToggleIcon");
+      const isOpening = panel.classList.contains("hidden");
+      panel.classList.toggle("hidden", !isOpening);
+      button.setAttribute("aria-expanded", String(isOpening));
+      icon.textContent = isOpening ? "▲ 點擊收起" : "▼ 點擊查看";
+    };
 
     function toLocalCompactDateTime(date) {
       const pad = (n) => String(n).padStart(2, "0");
