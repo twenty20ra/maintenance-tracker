@@ -147,8 +147,8 @@
             <tr class="border-b text-xs font-semibold text-slate-500 bg-slate-50">
               <th class="py-3 px-4">遊戲館別</th>
               <th class="py-3 px-4">維護區間</th>
-              <th class="py-3 px-4 text-center">開始：確認關閉</th>
-              <th class="py-3 px-4 text-center">結束：確認開啟</th>
+              <th class="py-3 px-4 text-left">開始：確認關閉</th>
+              <th class="py-3 px-4 text-left">結束：確認開啟</th>
               <th class="py-3 px-4">狀態</th>
               <th class="py-3 px-4 text-center">操作</th>
             </tr>
@@ -335,13 +335,13 @@
               <div>開始：${escapeHTML(formatDateTime(item.startTime))}</div>
               <div class="mt-1">結束：${escapeHTML(formatDateTime(item.endTime))}</div>
             </td>
-            <td class="py-3 px-4 text-center">
+            <td class="py-3 px-4 text-left">
               <label class="inline-flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" ${item.isClosed ? "checked" : ""} onchange="toggleStatus('${escapeHTML(item.id)}', 'isClosed', this.checked)" class="w-4 h-4 text-indigo-600 rounded">
                 <span class="text-xs text-slate-500">${item.isClosed ? `✅ ${escapeHTML(item.closedBy || '已關閉')}` : "未關閉"}</span>
               </label>
             </td>
-            <td class="py-3 px-4 text-center">
+            <td class="py-3 px-4 text-left">
               <label class="inline-flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" ${item.isOpened ? "checked" : ""} onchange="toggleStatus('${escapeHTML(item.id)}', 'isOpened', this.checked)" class="w-4 h-4 text-emerald-600 rounded">
                 <span class="text-xs text-slate-500">${item.isOpened ? `✅ ${escapeHTML(item.openedBy || '已開啟')}` : "未開啟"}</span>
